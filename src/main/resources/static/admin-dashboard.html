@@ -124,13 +124,27 @@
         </div>
 
         <div class="glass-panel mb-5">
-            <h3 class="mb-4"><i class="fas fa-user-cog"></i> System Management</h3>
-            <p class="text-muted">In a full production environment, this section would allow the Admin to add, edit, and delete Students and Teachers, map them to classes and subjects, and manage overall system configurations.</p>
-            <div class="alert alert-info">
-                <strong><i class="fas fa-info-circle"></i> Note:</strong> Default users are injected by the `DataInitializer`: 
-                <br> Admin: admin / admin123
-                <br> Teacher: teacher1 / pass123
-                <br> Student: student1 / pass123, student2 / pass123
+            <h3 class="mb-4"><i class="fas fa-user-cog"></i> Registered Students Management</h3>
+            
+            <div class="table-responsive">
+                <table class="table table-custom table-hover text-center">
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>Full Name</th>
+                            <th>Class/Course</th>
+                            <th>Username</th>
+                            <th>Face Enrolled</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminRegisteredStudentsBody">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <strong><i class="fas fa-info-circle"></i> Note:</strong> This view shows all permanently saved students from the database.
             </div>
         </div>
     </div>
@@ -142,12 +156,12 @@
             const user = checkAuth(['ADMIN']);
             if (user) setupUI(user);
 
-            // Fetch generic counts for visual mockup (calling /api/students)
+            // Fetch generic counts and populate students table
             fetch(`${API_BASE_URL}/students`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('totalStudents').innerText = data.length;
-                    document.getElementById('totalTeachers').innerText = '1'; // Mocked for default DataInitializer
+                    populateRegisteredStudents(data);
                 })
                 .catch(err => console.error(err));
 
@@ -156,6 +170,30 @@
             loadAdminAttendance();
             loadAdminTeacherAttendance();
         });
+
+        function populateRegisteredStudents(students) {
+            const tbody = document.getElementById('adminRegisteredStudentsBody');
+            tbody.innerHTML = '';
+            if (!students || students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No students registered yet.</td></tr>';
+                return;
+            }
+            
+            students.forEach(student => {
+                const username = student.user ? student.user.username : 'N/A';
+                const faceStatus = student.faceDescriptor ? '<span class="badge badge-success"><i class="fas fa-check"></i> Yes</span>' : '<span class="badge badge-warning"><i class="fas fa-times"></i> No</span>';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${student.id}</td>
+                        <td class="fw-bold">${student.name}</td>
+                        <td>${student.courseClass}</td>
+                        <td><code>${username}</code></td>
+                        <td>${faceStatus}</td>
+                    </tr>
+                `;
+            });
+        }
 
         async function loadAdminAttendance() {
             const courseClass = document.getElementById('adminClassSelect').value;
