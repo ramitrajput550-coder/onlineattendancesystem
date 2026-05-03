@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - EduTrack</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light glass-nav sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">
+                <i class="fas fa-graduation-cap me-2"></i>EduTrack Teacher
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3 d-none d-md-inline" id="userInfo">Welcome, Teacher</span>
+                <button onclick="logout()" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5 fade-in">
+        <div class="row g-4 mb-4">
+            <div class="col-md-12">
+                <div class="glass-panel">
+                    <h4><i class="fas fa-info-circle text-primary"></i> My Profile</h4>
+                    <hr>
+                    <p><strong>Name:</strong> <span id="tName">Loading...</span></p>
+                    <p><strong>Subject:</strong> <span id="tSubject">Loading...</span></p>
+                    <p><strong>Teacher ID:</strong> <span id="tId">Loading...</span></p>
+                    <button class="btn btn-outline-primary mt-3" onclick="openTeacherFaceRegistration()">
+                        <i class="fas fa-camera"></i> Register My Face
+                    </button>
+                    <button class="btn btn-success mt-3 ms-2" onclick="openTeacherSelfAttendance()">
+                        <i class="fas fa-calendar-check"></i> Mark My Attendance
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel mb-4">
+            <h3 class="mb-4"><i class="fas fa-calendar-check"></i> Mark Attendance</h3>
+            <div class="row g-3 align-items-end mb-4">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Select Class</label>
+                    <select id="classSelect" class="form-select">
+                        <option value="MCA-1">MCA 1st Year (MCA-1)</option>
+                        <option value="MCA-2">MCA 2nd Year (MCA-2)</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Date</label>
+                    <input type="date" id="dateSelect" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-custom w-100" onclick="loadStudents()">
+                        <i class="fas fa-search"></i> Load
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button id="startScanBtn" class="btn btn-success w-100" onclick="startAttendanceScan()" disabled>
+                        <i class="fas fa-camera"></i> Scan Face
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button id="markAbsentBtn" class="btn btn-danger w-100" onclick="markRemainingAbsent()" disabled>
+                        <i class="fas fa-times"></i> Mark Absent
+                    </button>
+                </div>
+            </div>
+            
+            <div id="attendanceArea" class="d-none">
+                <div class="table-responsive">
+                    <table class="table table-custom table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Student Name</th>
+                                <th>Class</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentTableBody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end mt-3" id="saveActionArea" class="d-none">
+                     <span id="saveStatus" class="me-3 fw-bold"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Face Scanner Modal -->
+    <div class="modal fade" id="scannerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content glass-panel">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="fas fa-camera"></i> Face Scanner Attendance</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopScanner()"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div id="videoWrapper" style="position: relative; width: 100%; height: 400px; background: #000; border-radius: 10px; overflow: hidden; display: flex; justify-content: center;">
+                        <video id="scanVideo" autoplay muted style="height: 100%; position: absolute; left: 50%; transform: translateX(-50%);"></video>
+                        <canvas id="scanCanvas" style="position: absolute; left: 50%; transform: translateX(-50%);"></canvas>
+                    </div>
+                    <p id="scanStatus" class="mt-3 text-muted">Please wait, loading models...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Face Registration Modal -->
+    <div class="modal fade" id="teacherFaceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content glass-panel">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="fas fa-camera"></i> Register My Face</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopTeacherCamera()"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div style="position: relative; width: 100%; height: 300px; background: #000; border-radius: 10px; overflow: hidden;">
+                        <video id="tVideo" width="100%" height="100%" autoplay muted style="object-fit: cover;"></video>
+                    </div>
+                    <p id="tFaceStatus" class="mt-3 text-muted">Please wait, loading models...</p>
+                    <button id="tCaptureBtn" class="btn btn-custom mt-2" onclick="captureTeacherFace()" disabled>Capture & Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Self Attendance Modal -->
+    <div class="modal fade" id="teacherAttendanceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content glass-panel">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="fas fa-camera"></i> Mark My Attendance</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopTeacherAttCamera()"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div style="position: relative; width: 100%; height: 300px; background: #000; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+                        <video id="tAttVideo" autoplay muted style="height: 100%; position: absolute; left: 50%; transform: translateX(-50%);"></video>
+                        <canvas id="tAttCanvas" style="position: absolute; left: 50%; transform: translateX(-50%);"></canvas>
+                    </div>
+                    <p id="tAttStatus" class="mt-3 text-muted">Please wait, checking data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = checkAuth(['TEACHER']);
+            if (user) {
+                setupUI(user);
+                document.getElementById('tName').innerText = user.name;
+                document.getElementById('tSubject').innerText = user.info;
+                document.getElementById('tId').innerText = user.profileId;
+            }
+            
+            // Set today's date
+            document.getElementById('dateSelect').valueAsDate = new Date();
+        });
+
+        let currentClassStudents = [];
+
+        async function loadStudents() {
+            const courseClass = document.getElementById('classSelect').value;
+            const date = document.getElementById('dateSelect').value;
+            if(!date) { alert("Please select a date"); return; }
+            
+            try {
+                // Check if attendance already marked
+                const attRes = await fetch(`${API_BASE_URL}/attendance/class/${courseClass}?date=${date}`);
+                const existingAtt = await attRes.json();
+                const markedIds = {};
+                existingAtt.forEach(a => markedIds[a.student.id] = a.status);
+
+                const res = await fetch(`${API_BASE_URL}/students/class/${courseClass}`);
+                const students = await res.json();
+                currentClassStudents = students;
+                document.getElementById('startScanBtn').disabled = false;
+                document.getElementById('markAbsentBtn').disabled = false;
+                
+                const tbody = document.getElementById('studentTableBody');
+                tbody.innerHTML = '';
+                
+                if(students.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No students found for this class.</td></tr>';
+                } else {
+                    students.forEach(student => {
+                        const existingStatus = markedIds[student.id];
+                        let actionHtml = '';
+                        if (existingStatus) {
+                            actionHtml = `<span class="badge badge-${existingStatus.toLowerCase()}"><i class="fas fa-check-circle"></i> ${existingStatus}</span>`;
+                        } else {
+                            actionHtml = `
+                                <button class="btn btn-sm btn-success rounded-pill px-3 me-2" onclick="markAtt(${student.id}, 'PRESENT', this)"><i class="fas fa-check"></i> P</button>
+                                <button class="btn btn-sm btn-danger rounded-pill px-3 me-2" onclick="markAtt(${student.id}, 'ABSENT', this)"><i class="fas fa-times"></i> A</button>
+                                <button class="btn btn-sm btn-warning rounded-pill px-3" onclick="markAtt(${student.id}, 'LATE', this)"><i class="fas fa-clock"></i> L</button>
+                            `;
+                        }
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${student.id}</td>
+                                <td class="fw-bold">${student.name}</td>
+                                <td>${student.courseClass}</td>
+                                <td id="actions-${student.id}">${actionHtml}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('attendanceArea').classList.remove('d-none');
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load students.");
+            }
+        }
+
+        async function markAtt(studentId, status, btnElement) {
+            const date = document.getElementById('dateSelect').value;
+            const payload = { studentId, status, date };
+            
+            try {
+                const res = await fetch(`${API_BASE_URL}/attendance/mark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    const actionCell = document.getElementById(`actions-${studentId}`);
+                    if(actionCell) {
+                        actionCell.innerHTML = `<span class="badge badge-${status.toLowerCase()} fade-in"><i class="fas fa-check-circle"></i> ${status}</span>`;
+                    }
+                } else {
+                    console.error("Failed to mark attendance.");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function markRemainingAbsent() {
+            const date = document.getElementById('dateSelect').value;
+            if(!confirm("Mark all unmarked students as ABSENT?")) return;
+            
+            for(const student of currentClassStudents) {
+                const actionCell = document.getElementById(`actions-${student.id}`);
+                if(actionCell && actionCell.innerHTML.includes('button')) {
+                    // still has buttons, meaning unmarked
+                    await markAtt(student.id, 'ABSENT', null);
+                }
+            }
+        }
+
+        // Face Scanner Logic
+        let scanStream = null;
+        let scannerActive = false;
+        let scanModelsLoaded = false;
+        let faceMatcher = null;
+
+        async function loadScanModels() {
+            if (scanModelsLoaded) return;
+            const modelUrl = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+            await faceapi.nets.ssdMobilenetv1.loadFromUri(modelUrl);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl);
+            scanModelsLoaded = true;
+        }
+
+        async function initializeFaceMatcher() {
+            const labeledDescriptors = [];
+            currentClassStudents.forEach(student => {
+                if (student.faceDescriptor && student.faceDescriptor.length > 5) {
+                    try {
+                        const descArray = JSON.parse(student.faceDescriptor);
+                        const descriptor = new Float32Array(descArray);
+                        labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(
+                            student.id.toString(), [descriptor]
+                        ));
+                    } catch(e) {
+                        console.error("Invalid descriptor for student " + student.name);
+                    }
+                }
+            });
+            if (labeledDescriptors.length > 0) {
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+                return true;
+            }
+            return false;
+        }
+
+        async function startAttendanceScan() {
+            if (currentClassStudents.length === 0) {
+                alert("Please load students first.");
+                return;
+            }
+
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('scannerModal'));
+            modal.show();
+
+            document.getElementById('scanStatus').innerText = "Loading models and student data...";
+            await loadScanModels();
+            
+            const matcherReady = await initializeFaceMatcher();
+            if (!matcherReady) {
+                document.getElementById('scanStatus').innerText = "No registered faces found in this class.";
+                return;
+            }
+
+            document.getElementById('scanStatus').innerText = "Starting camera...";
+            startScannerVideo();
+        }
+
+        function startScannerVideo() {
+            const video = document.getElementById('scanVideo');
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    scanStream = stream;
+                    video.srcObject = stream;
+                    scannerActive = true;
+                    video.onloadedmetadata = () => {
+                        document.getElementById('scanStatus').innerText = "Scanning for faces...";
+                        startDetectionLoop(video);
+                    };
+                })
+                .catch(err => {
+                    console.error("Camera error: ", err);
+                    document.getElementById('scanStatus').innerText = "Camera access denied.";
+                });
+        }
+
+        function stopScanner() {
+            scannerActive = false;
+            if (scanStream) {
+                scanStream.getTracks().forEach(track => track.stop());
+                scanStream = null;
+            }
+        }
+
+        async function startDetectionLoop(video) {
+            const canvas = document.getElementById('scanCanvas');
+            
+            // Set canvas dimensions to match video once video is playing
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            // A set to avoid spamming API calls for the same student
+            const recentlyMarked = new Set();
+
+            while (scannerActive) {
+                try {
+                    const detections = await faceapi.detectAllFaces(video)
+                        .withFaceLandmarks()
+                        .withFaceDescriptors();
+
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    if (detections.length > 0) {
+                        const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor));
+                        
+                        results.forEach((result, i) => {
+                            const box = resizedDetections[i].detection.box;
+                            
+                            let labelText = "Unknown";
+                            let color = "red";
+                            
+                            if (result.label !== 'unknown') {
+                                const studentId = parseInt(result.label);
+                                const student = currentClassStudents.find(s => s.id === studentId);
+                                if (student) {
+                                    labelText = student.name + " (" + Math.round((1 - result.distance) * 100) + "%)";
+                                    color = "green";
+                                    
+                                    if (!recentlyMarked.has(studentId)) {
+                                        recentlyMarked.add(studentId);
+                                        markAtt(studentId, 'PRESENT', null);
+                                        document.getElementById('scanStatus').innerText = `Marked: ${student.name}`;
+                                        
+                                        // Allow re-scan after 5 seconds just in case
+                                        setTimeout(() => { recentlyMarked.delete(studentId); }, 5000);
+                                    }
+                                }
+                            }
+                            
+                            const drawBox = new faceapi.draw.DrawBox(box, { label: labelText, boxColor: color });
+                            drawBox.draw(canvas);
+                        });
+                    }
+                } catch(e) {
+                    console.error("Scan loop error: ", e);
+                }
+                
+                // Slight delay to prevent blocking UI thread completely
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        // Handle modal close
+        document.getElementById('scannerModal').addEventListener('hidden.bs.modal', function () {
+            stopScanner();
+        });
+
+        // ----------------------------------------------------
+        // Teacher Self-Attendance & Face Registration Logic
+        // ----------------------------------------------------
+        let tVideoStream = null;
+        let tAttVideoStream = null;
+        let tScannerActive = false;
+        let myTeacherMatcher = null;
+
+        async function openTeacherFaceRegistration() {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('teacherFaceModal'));
+            modal.show();
+            document.getElementById('tFaceStatus').innerText = "Please wait, loading models...";
+            document.getElementById('tCaptureBtn').disabled = true;
+            await loadScanModels();
+            document.getElementById('tFaceStatus').innerText = "Starting camera...";
+            startTeacherCamera();
+        }
+
+        function startTeacherCamera() {
+            const video = document.getElementById('tVideo');
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    tVideoStream = stream;
+                    video.srcObject = stream;
+                    document.getElementById('tFaceStatus').innerText = "Please look at the camera";
+                    
+                    const btn = document.getElementById('tCaptureBtn');
+                    btn.disabled = false;
+                    btn.style.position = 'relative';
+                    btn.style.zIndex = '9999';
+                })
+                .catch(err => {
+                    console.error("Camera error: ", err);
+                    document.getElementById('tFaceStatus').innerText = "Camera access denied.";
+                });
+        }
+
+        function stopTeacherCamera() {
+            if (tVideoStream) {
+                tVideoStream.getTracks().forEach(track => track.stop());
+                tVideoStream = null;
+            }
+        }
+
+        async function captureTeacherFace() {
+            document.getElementById('tFaceStatus').innerText = "Capturing...";
+            document.getElementById('tCaptureBtn').disabled = true;
+            
+            // Allow UI to update before heavy processing blocks thread
+            await new Promise(r => setTimeout(r, 100));
+            
+            const video = document.getElementById('tVideo');
+            let detection = null;
+            
+            try {
+                detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+            } catch(e) {
+                console.error("FaceAPI error: ", e);
+                document.getElementById('tFaceStatus').innerText = "Error scanning face. Refresh page.";
+                document.getElementById('tCaptureBtn').disabled = false;
+                return;
+            }
+
+            if (!detection) {
+                document.getElementById('tFaceStatus').innerText = "No face detected. Try again.";
+                document.getElementById('tCaptureBtn').disabled = false;
+                return;
+            }
+
+            const descriptorArray = Array.from(detection.descriptor);
+            const descriptorString = JSON.stringify(descriptorArray);
+            const user = JSON.parse(localStorage.getItem('user'));
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/teachers/${user.profileId}/face`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ faceDescriptor: descriptorString })
+                });
+
+                if (res.ok) {
+                    document.getElementById('tFaceStatus').innerText = "Face registered successfully!";
+                    setTimeout(() => {
+                        stopTeacherCamera();
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('teacherFaceModal')).hide();
+                    }, 2000);
+                } else {
+                    document.getElementById('tFaceStatus').innerText = "Failed to save face.";
+                    document.getElementById('tCaptureBtn').disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('tFaceStatus').innerText = "Error saving face.";
+                document.getElementById('tCaptureBtn').disabled = false;
+            }
+        }
+
+        document.getElementById('teacherFaceModal').addEventListener('hidden.bs.modal', stopTeacherCamera);
+
+        // Mark My Attendance (Teacher)
+        async function openTeacherSelfAttendance() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('teacherAttendanceModal'));
+            modal.show();
+            document.getElementById('tAttStatus').innerText = "Loading models and checking face data...";
+            await loadScanModels();
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/teachers/${user.profileId}`);
+                const me = await res.json();
+                
+                if (!me || !me.faceDescriptor || me.faceDescriptor.length < 10) {
+                    document.getElementById('tAttStatus').innerText = "You haven't registered your face yet. Please register first!";
+                    return;
+                }
+                
+                const descArray = JSON.parse(me.faceDescriptor);
+                const descriptor = new Float32Array(descArray);
+                const labeledDescriptors = [new faceapi.LabeledFaceDescriptors(me.id.toString(), [descriptor])];
+                myTeacherMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+
+                document.getElementById('tAttStatus').innerText = "Starting camera...";
+                startTeacherAttCamera();
+            } catch(e) {
+                console.error(e);
+                document.getElementById('tAttStatus').innerText = "Error fetching your profile.";
+            }
+        }
+
+        function startTeacherAttCamera() {
+            const video = document.getElementById('tAttVideo');
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    tAttVideoStream = stream;
+                    video.srcObject = stream;
+                    tScannerActive = true;
+                    video.onloadedmetadata = () => {
+                        document.getElementById('tAttStatus').innerText = "Looking for your face...";
+                        startTeacherAttDetectionLoop(video);
+                    };
+                }).catch(err => {
+                    document.getElementById('tAttStatus').innerText = "Camera access denied.";
+                });
+        }
+
+        function stopTeacherAttCamera() {
+            tScannerActive = false;
+            if (tAttVideoStream) {
+                tAttVideoStream.getTracks().forEach(track => track.stop());
+                tAttVideoStream = null;
+            }
+        }
+
+        async function startTeacherAttDetectionLoop(video) {
+            const canvas = document.getElementById('tAttCanvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            while (tScannerActive) {
+                try {
+                    const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    if (detections.length > 0) {
+                        const results = resizedDetections.map(d => myTeacherMatcher.findBestMatch(d.descriptor));
+                        let matched = false;
+                        results.forEach((result, i) => {
+                            const box = resizedDetections[i].detection.box;
+                            let color = "red";
+                            if (result.label !== 'unknown') { color = "green"; matched = true; }
+                            const drawBox = new faceapi.draw.DrawBox(box, { label: result.label !== 'unknown' ? "Verified" : "Unknown", boxColor: color });
+                            drawBox.draw(canvas);
+                        });
+
+                        if (matched) {
+                            tScannerActive = false;
+                            document.getElementById('tAttStatus').innerHTML = `<span class="text-success fw-bold">Face Verified! Marking attendance...</span>`;
+                            await submitTeacherAttendance();
+                            return;
+                        }
+                    }
+                } catch(e) {}
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        async function submitTeacherAttendance() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const date = new Date();
+            const todayStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            const payload = { teacherId: user.profileId, status: 'PRESENT', date: todayStr };
+            
+            try {
+                const res = await fetch(`${API_BASE_URL}/teachers/attendance/mark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    document.getElementById('tAttStatus').innerHTML = `<span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Attendance marked successfully!</span>`;
+                    setTimeout(() => {
+                        stopTeacherAttCamera();
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('teacherAttendanceModal')).hide();
+                        alert("Your attendance has been marked for today.");
+                    }, 2000);
+                } else {
+                    document.getElementById('tAttStatus').innerText = "Failed to submit attendance to server.";
+                }
+            } catch (err) {
+                document.getElementById('tAttStatus').innerText = "Error connecting to server.";
+            }
+        }
+
+        document.getElementById('teacherAttendanceModal').addEventListener('hidden.bs.modal', stopTeacherAttCamera);
+    </script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - EduTrack</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light glass-nav sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">
+                <i class="fas fa-graduation-cap me-2"></i>EduTrack Student
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="me-3 d-none d-md-inline" id="userInfo">Welcome, Student</span>
+                <button onclick="logout()" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5 fade-in">
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="glass-panel text-center dashboard-card p-4">
+                    <div class="display-4 text-primary mb-2"><i class="fas fa-percentage"></i></div>
+                    <h4>Overall Attendance</h4>
+                    <h2 class="fw-bold" id="attPercentage">--%</h2>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="glass-panel h-100">
+                    <h4><i class="fas fa-info-circle text-primary"></i> Profile Info</h4>
+                    <hr>
+                    <p><strong>Name:</strong> <span id="sName">Loading...</span></p>
+                    <p><strong>Class:</strong> <span id="sClass">Loading...</span></p>
+                    <p><strong>Student ID:</strong> <span id="sId">Loading...</span></p>
+                    <button class="btn btn-outline-primary mt-3" onclick="openFaceRegistration()">
+                        <i class="fas fa-camera"></i> Register Face
+                    </button>
+                    <button class="btn btn-success mt-3 ms-2" onclick="openSelfAttendance()">
+                        <i class="fas fa-calendar-check"></i> Mark Attendance
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <h3 class="mb-4"><i class="fas fa-history"></i> Attendance History</h3>
+            <div class="table-responsive">
+                <table class="table table-custom table-hover text-center">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr><td colspan="2"><span class="spinner-border spinner-border-sm"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Face Registration Modal -->
+    <div class="modal fade" id="faceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content glass-panel">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="fas fa-camera"></i> Register Face</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopCamera()"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div style="position: relative; width: 100%; height: 300px; background: #000; border-radius: 10px; overflow: hidden;">
+                        <video id="video" width="100%" height="100%" autoplay muted style="object-fit: cover;"></video>
+                    </div>
+                    <p id="faceStatus" class="mt-3 text-muted">Please wait, loading models...</p>
+                    <button id="captureBtn" class="btn btn-custom mt-2" onclick="captureFace()" disabled>Capture & Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Self Attendance Modal -->
+    <div class="modal fade" id="attendanceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content glass-panel">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title"><i class="fas fa-camera"></i> Mark My Attendance</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopAttCamera()"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div style="position: relative; width: 100%; height: 300px; background: #000; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+                        <video id="attVideo" autoplay muted style="height: 100%; position: absolute; left: 50%; transform: translateX(-50%);"></video>
+                        <canvas id="attCanvas" style="position: absolute; left: 50%; transform: translateX(-50%);"></canvas>
+                    </div>
+                    <p id="attStatus" class="mt-3 text-muted">Please wait, checking data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = checkAuth(['STUDENT']);
+            if (!user) return;
+            
+            setupUI(user);
+            
+            document.getElementById('sName').innerText = user.name;
+            document.getElementById('sClass').innerText = user.info;
+            document.getElementById('sId').innerText = user.profileId;
+
+            // Fetch history
+            try {
+                const res = await fetch(`${API_BASE_URL}/attendance/student/${user.profileId}`);
+                const data = await res.json();
+                
+                const tbody = document.getElementById('historyTableBody');
+                tbody.innerHTML = '';
+                
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" class="text-muted">No attendance records found.</td></tr>';
+                    document.getElementById('attPercentage').innerText = '0%';
+                } else {
+                    let presentCount = 0;
+                    data.forEach(record => {
+                        if (record.status === 'PRESENT') presentCount++;
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="fw-bold">${record.attendanceDate}</td>
+                                <td><span class="badge badge-${record.status.toLowerCase()}">${record.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    const percentage = Math.round((presentCount / data.length) * 100);
+                    document.getElementById('attPercentage').innerText = `${percentage}%`;
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="2" class="text-danger">Failed to load data.</td></tr>';
+            }
+        });
+
+        // Face Registration Logic
+        let videoStream = null;
+        let modelsLoaded = false;
+        let currentUser = null;
+
+        async function loadModels() {
+            if (modelsLoaded) return;
+            const modelUrl = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+            await faceapi.nets.ssdMobilenetv1.loadFromUri(modelUrl);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl);
+            modelsLoaded = true;
+        }
+
+        async function openFaceRegistration() {
+            currentUser = JSON.parse(localStorage.getItem('user'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faceModal'));
+            modal.show();
+            
+            document.getElementById('faceStatus').innerText = "Please wait, loading models...";
+            document.getElementById('captureBtn').disabled = true;
+
+            await loadModels();
+            
+            document.getElementById('faceStatus').innerText = "Starting camera...";
+            startCamera();
+        }
+
+        function startCamera() {
+            const video = document.getElementById('video');
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    videoStream = stream;
+                    video.srcObject = stream;
+                    document.getElementById('faceStatus').innerText = "Please look at the camera";
+                    document.getElementById('captureBtn').disabled = false;
+                })
+                .catch(err => {
+                    console.error("Error accessing camera: ", err);
+                    document.getElementById('faceStatus').innerText = "Camera access denied.";
+                });
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+        }
+
+        async function captureFace() {
+            document.getElementById('faceStatus').innerText = "Capturing...";
+            document.getElementById('captureBtn').disabled = true;
+            const video = document.getElementById('video');
+
+            const detection = await faceapi.detectSingleFace(video)
+                                           .withFaceLandmarks()
+                                           .withFaceDescriptor();
+
+            if (!detection) {
+                document.getElementById('faceStatus').innerText = "No face detected. Try again.";
+                document.getElementById('captureBtn').disabled = false;
+                return;
+            }
+
+            const descriptorArray = Array.from(detection.descriptor);
+            const descriptorString = JSON.stringify(descriptorArray);
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/students/${currentUser.profileId}/face`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ faceDescriptor: descriptorString })
+                });
+
+                if (res.ok) {
+                    document.getElementById('faceStatus').innerText = "Face registered successfully!";
+                    setTimeout(() => {
+                        stopCamera();
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('faceModal')).hide();
+                    }, 2000);
+                } else {
+                    document.getElementById('faceStatus').innerText = "Failed to save face.";
+                    document.getElementById('captureBtn').disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('faceStatus').innerText = "Error saving face.";
+                document.getElementById('captureBtn').disabled = false;
+            }
+        }
+
+        // Handle modal close events
+        document.getElementById('faceModal').addEventListener('hidden.bs.modal', function () {
+            stopCamera();
+        });
+
+        // Self-Attendance Logic
+        let attVideoStream = null;
+        let attScannerActive = false;
+        let myFaceMatcher = null;
+
+        async function openSelfAttendance() {
+            currentUser = JSON.parse(localStorage.getItem('user'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('attendanceModal'));
+            modal.show();
+            
+            document.getElementById('attStatus').innerText = "Loading models and checking face data...";
+            await loadModels();
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/students/class/${currentUser.info}`);
+                const students = await res.json();
+                const me = students.find(s => s.id === currentUser.profileId);
+                
+                if (!me || !me.faceDescriptor || me.faceDescriptor.length < 10) {
+                    document.getElementById('attStatus').innerText = "You haven't registered your face yet. Please register first!";
+                    return;
+                }
+                
+                const descArray = JSON.parse(me.faceDescriptor);
+                const descriptor = new Float32Array(descArray);
+                const labeledDescriptors = [
+                    new faceapi.LabeledFaceDescriptors(me.id.toString(), [descriptor])
+                ];
+                myFaceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+
+                document.getElementById('attStatus').innerText = "Starting camera...";
+                startAttCamera();
+            } catch(e) {
+                console.error(e);
+                document.getElementById('attStatus').innerText = "Error fetching your profile.";
+            }
+        }
+
+        function startAttCamera() {
+            const video = document.getElementById('attVideo');
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    attVideoStream = stream;
+                    video.srcObject = stream;
+                    attScannerActive = true;
+                    video.onloadedmetadata = () => {
+                        document.getElementById('attStatus').innerText = "Looking for your face...";
+                        startAttDetectionLoop(video);
+                    };
+                })
+                .catch(err => {
+                    console.error("Camera error: ", err);
+                    document.getElementById('attStatus').innerText = "Camera access denied.";
+                });
+        }
+
+        function stopAttCamera() {
+            attScannerActive = false;
+            if (attVideoStream) {
+                attVideoStream.getTracks().forEach(track => track.stop());
+                attVideoStream = null;
+            }
+        }
+
+        async function startAttDetectionLoop(video) {
+            const canvas = document.getElementById('attCanvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            while (attScannerActive) {
+                try {
+                    const detections = await faceapi.detectAllFaces(video)
+                        .withFaceLandmarks()
+                        .withFaceDescriptors();
+
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    if (detections.length > 0) {
+                        const results = resizedDetections.map(d => myFaceMatcher.findBestMatch(d.descriptor));
+                        
+                        let matched = false;
+                        results.forEach((result, i) => {
+                            const box = resizedDetections[i].detection.box;
+                            let color = "red";
+                            if (result.label !== 'unknown') {
+                                color = "green";
+                                matched = true;
+                            }
+                            const drawBox = new faceapi.draw.DrawBox(box, { label: result.label !== 'unknown' ? "Verified" : "Unknown", boxColor: color });
+                            drawBox.draw(canvas);
+                        });
+
+                        if (matched) {
+                            attScannerActive = false;
+                            document.getElementById('attStatus').innerHTML = `<span class="text-success fw-bold">Face Verified! Marking attendance...</span>`;
+                            await submitMyAttendance();
+                            return;
+                        }
+                    }
+                } catch(e) {}
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        async function submitMyAttendance() {
+            // Local date mapping logic equivalent to standard ISO without timezone shift
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+
+            const payload = { studentId: currentUser.profileId, status: 'PRESENT', date: todayStr };
+            
+            try {
+                const res = await fetch(`${API_BASE_URL}/attendance/mark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    document.getElementById('attStatus').innerHTML = `<span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Attendance marked successfully!</span>`;
+                    setTimeout(() => {
+                        stopAttCamera();
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('attendanceModal')).hide();
+                        location.reload(); // Reload to fetch history
+                    }, 2000);
+                } else {
+                    document.getElementById('attStatus').innerText = "Failed to submit attendance to server.";
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('attStatus').innerText = "Error connecting to server.";
+            }
+        }
+
+        document.getElementById('attendanceModal').addEventListener('hidden.bs.modal', function () {
+            stopAttCamera();
+        });
+    </script>
+</body>
+</html>
